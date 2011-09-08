@@ -1,0 +1,3 @@
+[submodule "yql"]
+	path = yql
+	url = git@gist.github.com:1205048.git

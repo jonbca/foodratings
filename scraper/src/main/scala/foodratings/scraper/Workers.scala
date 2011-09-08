@@ -32,6 +32,7 @@ import xml.{XML, Elem}
 import com.twitter.json.Json
 import java.util.{Date, Calendar}
 import org.apache.http.impl.cookie.{DateParseException, DateUtils}
+import io.Codec
 
 case class ResultString(eid: Int, value: String)
 case class ParsedResult(eid: Int, value: Map[String, String])
@@ -57,7 +58,7 @@ object Workers {
   }
 
   /**
-   * Process a response rom the
+   * Process a response from the YQL server
    */
   val ResponseProcessor = actor {
     val inspectionDateFormat = Array[String]("EEEEE, MMMMM dd, yyyy")
@@ -147,6 +148,8 @@ object Workers {
   }
 
   val DataWriter = actor {
+    implicit val codec = Codec.UTF8
+
     def writeData(eid: Int, data: Map[String, String]) {
       println(Json.build(data))
     }
