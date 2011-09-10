@@ -71,26 +71,29 @@ object Workers {
 
           val output = results match {
             case results: Map[String, _] => results.get("query") match {
-              case Some(q) => q.asInstanceOf[Map[String, _]].get("count") match {
+              case Some(q: Map[String, _]) => q.get("count") match {
                 case Some(1) =>
                   log info "Successful result for eid = " + response.eid
                   val establishment = q.asInstanceOf[Map[String, _]].get("results").get
                     .asInstanceOf[Map[String, _]].get("establishment").get.asInstanceOf[Map[String, _]]
-                  val inspectionDate = establishment.get(JsonConstants.LAST_INSPECTION.toString) match {
-                    case Some(lastInspection) if lastInspection.isInstanceOf[String] =>
+
+                  /* Reformat the Last Inspection date to Javascript standard */
+                  establishment.get(JsonConstants.LAST_INSPECTION) match {
+                    case Some(lastInspection: String) =>
                       log debug "Found inspection date of " + lastInspection
-                      try {
-                        val parsedDate = DateUtils.parseDate(lastInspection.asInstanceOf[String], inspectionDateFormat)
+                      val inspectionDate = try {
+                        val parsedDate = DateUtils.parseDate(lastInspection, inspectionDateFormat)
                         DateUtils.formatDate(parsedDate)
                       } catch {
-                        case e: DateParseException => log warn "Could not parse inspection date"
-                        inspectionDate
+                        case e: DateParseException =>
+                          log warn "Could not parse inspection date: " + lastInspection
+                          lastInspection // Use the original value
                       }
+                      establishment + ((JsonConstants.LAST_INSPECTION, inspectionDate))
                     case _ =>
                       log warn "No inspection date key found"
-                      ""
+                      establishment
                   }
-                  establishment + ((JsonConstants.LAST_INSPECTION.toString, inspectionDate))
                 case _ =>
                   log info "Invalid number of records for eid = " + response.eid
                   log debug "Response is " + response.value
@@ -105,8 +108,8 @@ object Workers {
             case _ => Map("eid" -> response.eid)
           }
 
-          DataWriter ! ParsedResult(response.eid, output ++ Map(JsonConstants.CREATED.toString -> timestamp,
-            JsonConstants.MODIFIED.toString -> timestamp))
+          DataWriter ! ParsedResult(response.eid, output ++ Map(JsonConstants.CREATED -> timestamp,
+            JsonConstants.MODIFIED -> timestamp))
         }
         case Complete => exit()
         case _ => log warn "Unknown message received"
