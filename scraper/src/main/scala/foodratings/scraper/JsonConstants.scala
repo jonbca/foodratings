@@ -1,7 +1,5 @@
 package foodratings.scraper
 
-import collection.immutable.HashMap
-
 /*
  * Copyright (c) 2011 by Jonathan Abourbih.
  *
@@ -24,11 +22,9 @@ import collection.immutable.HashMap
  * THE SOFTWARE.
  */
 
-object JsonConstants extends Enumeration {
-  type JsonConstants = Value
-
-  val NAME = Value("name")
-  val LAST_INSPECTION = Value("last_inspection")
-  val CREATED = Value("created")
-  val MODIFIED = Value("modified")
+object JsonConstants {
+  val NAME = "name"
+  val LAST_INSPECTION = "last_inspection"
+  val CREATED = "created"
+  val MODIFIED = "modified"
 }
