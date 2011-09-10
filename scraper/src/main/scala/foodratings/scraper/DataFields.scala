@@ -24,32 +24,11 @@ import collection.immutable.HashMap
  * THE SOFTWARE.
  */
 
-object IDsToAttributes {
-  val attributes = Map(
-    "ctl00_ContentPlaceHolder1_uxBusinessName"-> "name",
-    "ctl00_ContentPlaceHolder1_uxBusinessAddress1"-> "address1",
-    "ctl00_ContentPlaceHolder1_uxBusinessAddress2"-> "address2",
-    "ctl00_ContentPlaceHolder1_uxBusinessAddress3"-> "address3",
-    "ctl00_ContentPlaceHolder1_uxBusinessAddress4"-> "address4",
-    "ctl00_ContentPlaceHolder1_uxBusinessPostCode"-> "postcode",
-    "ctl00_ContentPlaceHolder1_uxBusinessType"-> "type",
-    "ctl00_ContentPlaceHolder1_uxBusinessLastInspection"-> "last_inspection",
-    "ctl00_ContentPlaceHolder1_uxLocalAuthorityName"-> "local_auth_name",
-    "ctl00_ContentPlaceHolder1_uxLocalAuthorityEmail"-> "local_auth_email",
-    "ctl00_ContentPlaceHolder1_uxLocalAuthorityUrl"-> "local_auth_url"
-  )
+object JsonConstants extends Enumeration {
+  type JsonConstants = Value
 
-  val RATING = "rating"
-  val RATING_SYSTEM = "rating_system"
-
-  val RATING_SYSTEM_FHIS = "fhis"
-  val RATING_SYSTEM_FHR = "fhr"
-
-  val fhisRatings = Map(
-    "ctl00_ContentPlaceHolder1_infoImageImprovementRequired" -> "improvement_required",
-    "ctl00_ContentPlaceHolder1_infoImagePassAndEatSafe" -> "pass_plus_eat_safe",
-    "ctl00_ContentPlaceHolder1_infoImagePass" -> "pass",
-    "ctl00_ContentPlaceHolder1_infoImageAwaitingInspection" -> "awaiting_inspection",
-    "ctl00_ContentPlaceHolder1_infoImageExempt" -> "exempt"
-  )
+  val NAME = Value("name")
+  val LAST_INSPECTION = Value("last_inspection")
+  val CREATED = Value("created")
+  val MODIFIED = Value("modified")
 }

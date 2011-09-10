@@ -23,38 +23,36 @@ package foodratings.scraper
  */
 
 import actors.Actor._
-import org.slf4j
-import slf4j.LoggerFactory
 import org.apache.http.impl.client._
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.util.EntityUtils
-import xml.{XML, Elem}
 import com.twitter.json.Json
-import java.util.{Date, Calendar}
+import java.util.Date
 import org.apache.http.impl.cookie.{DateParseException, DateUtils}
-import io.Codec
+import org.slf4j.LoggerFactory
 
 case class ResultString(eid: Int, value: String)
-case class ParsedResult(eid: Int, value: Map[String, String])
+
+case class ParsedResult(eid: Int, value: Map[String, _])
+
 case object Complete
 
 object Workers {
   val log = LoggerFactory.getLogger(this.getClass)
   val eidRegex = "!eid!".r
-  val ratingRegex = "ctl00_ContentPlaceHolder1_infoImageScore([0-5])".r
+  val client = new DefaultHttpClient()
 
   /**
    * Send a single request to the YQL API for food rating data
    */
   def send_request_for(eid: Int): String = {
-    val urlTemplate = """http://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20html%20where%20url%20%3D%20%22http%3A%2F%2Fratings.food.gov.uk%2FEstablishmentDetails.aspx%3Feid%3D!eid!%22%20and%20(xpath%3D'%2F%2Fspan'%20or%20xpath%3D'%2F%2Fimg%5Bcontains(%40id%2C%20%22ctl00_ContentPlaceHolder1%22)%5D'%20or%20xpath%3D'%2F%2Fdiv%5B%40class%3D%22InfoLAContainer%22%5D%2F*')&_maxage=86400"""
-    val client = new DefaultHttpClient()
+    val urlTemplate = """http://query.yahooapis.com/v1/public/yql/jonbca/ratings?format=json&eid=!eid!&_maxage=86400"""
     val dataUrl = eidRegex.replaceFirstIn(urlTemplate, eid.toString)
     val getter = new HttpGet(dataUrl)
     val response = client.execute(getter)
 
-    log info "Retrieving xml data for " + eid.toString
-    EntityUtils.toString(response.getEntity, "UTF-8")
+    log info "Retrieving json data for " + eid.toString
+    EntityUtils.toString(response.getEntity)
   }
 
   /**
@@ -63,83 +61,52 @@ object Workers {
   val ResponseProcessor = actor {
     val inspectionDateFormat = Array[String]("EEEEE, MMMMM dd, yyyy")
 
-    def process_response(eid: Int, response: Elem): Map[String, String] = {
-      var results = Map("eid" -> eid.toString)
-
-      (response \ "results" \ "_") foreach (_ match {
-        /* "basic" attributes are stored in span tags */
-        case n @ <span>{ txt }</span> => {
-          val attributeName = (n \ "@id").text
-          val baseAttribute = IDsToAttributes.attributes.get(attributeName)
-
-          baseAttribute match {
-            case Some(value) if value.equals("last_inspection") =>
-              /* handle the inspection date by normalising the date format */
-              try {
-                val inspectionDate = DateUtils.parseDate(txt.text, inspectionDateFormat)
-                results += ((value, DateUtils.formatDate(inspectionDate)))
-              } catch {
-                case e: DateParseException =>
-                  log.warn("Unable to parse inspection date: " + txt.text, e)
-                  results += ((value, txt.text))
-                case unknown => log.error("Unknown problem handling inspection date", unknown)
-                  results += ((value, txt.text))
-              }
-            case Some(value) => results += ((value, txt.text)) // Not a date
-            case _ =>
-          }
-        }
-
-        /* extract local authority e-mail and URL, from 'a' tags */
-        case n @ <a>{ txt }</a> => {
-          val attributeName = (n \ "@id").text
-          val baseAttribute = IDsToAttributes.attributes.get(attributeName)
-
-          baseAttribute match {
-            case Some(value) => results += ((value, txt.text))
-            case _ =>
-          }
-        }
-
-        /* extract rating */
-        case n @ <img/> => {
-          val rating = (n \ "@id").text
-
-          rating match {
-            case ratingRegex(ratingValue) =>
-              /* english rating system */
-              results += ((IDsToAttributes.RATING, ratingValue))
-              results += ((IDsToAttributes.RATING_SYSTEM, IDsToAttributes.RATING_SYSTEM_FHR))
-            case _ =>
-              /* try the scottish system */
-              val fhisRating = IDsToAttributes.fhisRatings.get(rating)
-
-              fhisRating match {
-                case Some(fhisValue) =>
-                  /* scottish rating found */
-                  results += ((IDsToAttributes.RATING, fhisValue))
-                  results += ((IDsToAttributes.RATING_SYSTEM, IDsToAttributes.RATING_SYSTEM_FHIS))
-                case _ =>
-              }
-          }
-        }
-
-        case _ =>
-      })
-
-      results
-    }
-
     loop {
       react {
         case response: ResultString => {
           log info "Received response for eid = " + response.eid
-          val timestamp = DateUtils.formatDate(new Date())
+          val timestamp = DateUtils.formatDate(new Date()) // for created & modified
 
-          if (log.isDebugEnabled) log debug "Response for eid: " + response.eid + " is " + response.value
-          val result = process_response(response.eid, XML.loadString(response.value)) +
-                       (("modified", timestamp)) + (("created", timestamp))
-          DataWriter ! new ParsedResult(response.eid, result)
+          val results = Json.parse(response.value)
+
+          val output = results match {
+            case results: Map[String, _] => results.get("query") match {
+              case Some(q) => q.asInstanceOf[Map[String, _]].get("count") match {
+                case Some(1) =>
+                  log info "Successful result for eid = " + response.eid
+                  val establishment = q.asInstanceOf[Map[String, _]].get("results").get
+                    .asInstanceOf[Map[String, _]].get("establishment").get.asInstanceOf[Map[String, _]]
+                  val inspectionDate = establishment.get(JsonConstants.LAST_INSPECTION.toString) match {
+                    case Some(lastInspection) if lastInspection.isInstanceOf[String] =>
+                      log debug "Found inspection date of " + lastInspection
+                      try {
+                        val parsedDate = DateUtils.parseDate(lastInspection.asInstanceOf[String], inspectionDateFormat)
+                        DateUtils.formatDate(parsedDate)
+                      } catch {
+                        case e: DateParseException => log warn "Could not parse inspection date"
+                        inspectionDate
+                      }
+                    case _ =>
+                      log warn "No inspection date key found"
+                      ""
+                  }
+                  establishment + ((JsonConstants.LAST_INSPECTION.toString, inspectionDate))
+                case _ =>
+                  log info "Invalid number of records for eid = " + response.eid
+                  log debug "Response is " + response.value
+                  Map("eid" -> response.eid)
+              }
+              case _ =>
+                log info "No query key in response map for eid = " + response.eid
+                log debug "Response for eid " + response.eid + " was " + response.value
+                Map("eid" -> response.eid)
+            }
+
+            case _ => Map("eid" -> response.eid)
+          }
+
+          DataWriter ! ParsedResult(response.eid, output ++ Map(JsonConstants.CREATED.toString -> timestamp,
+            JsonConstants.MODIFIED.toString -> timestamp))
         }
         case Complete => exit()
         case _ => log warn "Unknown message received"
@@ -148,9 +115,7 @@ object Workers {
   }
 
   val DataWriter = actor {
-    implicit val codec = Codec.UTF8
-
-    def writeData(eid: Int, data: Map[String, String]) {
+    def writeData(eid: Int, data: Map[String, _]) {
       println(Json.build(data))
     }
 
