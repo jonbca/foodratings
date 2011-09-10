@@ -46,7 +46,7 @@ object Workers {
    * Send a single request to the YQL API for food rating data
    */
   def send_request_for(eid: Int): String = {
-    val urlTemplate = """http://query.yahooapis.com/v1/public/yql/jonbca/ratings?format=json&eid=!eid!&_maxage=86400"""
+    val urlTemplate = """http://query.yahooapis.com/v1/public/yql/jonbca/ratings?format=json&eid=!eid!"""
     val dataUrl = eidRegex.replaceFirstIn(urlTemplate, eid.toString)
     val getter = new HttpGet(dataUrl)
     val response = client.execute(getter)
