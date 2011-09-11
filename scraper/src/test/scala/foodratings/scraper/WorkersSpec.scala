@@ -237,5 +237,17 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
         case _ => fail()
       }
     }
+
+    "handle badly-formed JSON" in {
+      val handler = new ContentHandler()
+      val json = """This is not well-formed JSON"""
+
+      val result = handler.handle_response(new ResultString(12345, json))
+
+      result must have the key("eid")
+      result must have the key("created")
+      result must have the key("modified")
+      result must not have the key("last_inspection")
+    }
   }
 }

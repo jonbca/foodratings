@@ -136,9 +136,15 @@ class ContentHandler extends Actor {
   }
 
   def handle_response(s: ResultString): Map[String, Any] = {
-    val json = Json.parse(s.value) match {
-      case j: Map[String, _] => j
-      case _ => Map[String, Any]()
+    val json = try {
+      Json.parse(s.value) match {
+        case j: Map[String, _] => j
+        case _ => Map[String, Any]()
+      }
+    } catch {
+      case e =>
+        log error("Exception parsing result string", e)
+        Map[String, Any]()
     }
 
     if (is_valid_response(json)) {
