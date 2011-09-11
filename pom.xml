@@ -20,7 +20,10 @@
   ~ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   ~ THE SOFTWARE.
   -->
-<project>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                      http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>foodratings</groupId>
@@ -41,10 +44,26 @@
 
     <scm>
         <connection>scm:git:git://github.com/jonbca/foodratings.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com:jonbca/foodratings.git</developerConnection>
+        <developerConnection>scm:git:git@github.com:jonbca/foodratings.git</developerConnection>
         <tag>HEAD</tag>
         <url>https://github.com/jonbca/foodratings</url>
     </scm>
+
+    <developers>
+        <developer>
+            <id>jonbca</id>
+            <name>Jonathan Abourbih</name>
+            <timezone>0</timezone>
+        </developer>
+    </developers>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>http://www.opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
     <repositories>
         <repository>
@@ -138,15 +157,6 @@
                     <groupId>org.scala-tools</groupId>
                     <artifactId>maven-scala-plugin</artifactId>
                     <version>2.15.2</version>
-                    <executions>
-                        <execution>
-                            <phase>compile</phase>
-                            <goals>
-                                <goal>compile</goal>
-                                <goal>testCompile</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                     <configuration>
                         <scalaVersion>${scala.version}</scalaVersion>
                     </configuration>
