@@ -67,10 +67,6 @@
             <artifactId>signpost-commonshttp4</artifactId>
         </dependency>
         <dependency>
-            <groupId>net.liftweb</groupId>
-            <artifactId>lift-json_${scala.version}</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.twitter</groupId>
             <artifactId>json</artifactId>
         </dependency>
