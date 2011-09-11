@@ -23,43 +23,155 @@ package foodratings.scraper
  */
 
 import actors.Actor._
-import org.apache.http.impl.client._
-import org.apache.http.client.methods.HttpGet
 import org.apache.http.util.EntityUtils
 import com.twitter.json.Json
 import java.util.Date
 import org.apache.http.impl.cookie.{DateParseException, DateUtils}
 import org.slf4j.LoggerFactory
+import actors.Actor
+import org.apache.http.client.HttpClient
+import org.apache.http.client.methods.HttpGet
+import java.net.URI
 
 case class ResultString(eid: Int, value: String)
 
 case class ParsedResult(eid: Int, value: Map[String, _])
 
-case object Complete
+case object Stop
+
+class RequestSender(clientGenerator: (()=> HttpClient)) {
+  val log = LoggerFactory.getLogger(this.getClass)
+  val client = clientGenerator()
+
+  def get(uri: URI): Option[String] = {
+    sender !? uri match {
+      case x: Some[String] => x
+      case _ => None
+    }
+  }
+
+  private def send_request(uri: URI): Option[String] = {
+    val request = new HttpGet(uri)
+
+    try {
+      val response = client.execute(request)
+
+      if (response.getStatusLine.getStatusCode == 200) {
+        Some(EntityUtils.toString(response.getEntity))
+      } else {
+        log error "Get for URL " + uri + " returned status " + response.getStatusLine.toString
+        EntityUtils.consume(response.getEntity)
+        None
+      }
+    } catch {
+      case e =>
+        log.error("Request for " + uri + " failed.", e)
+        None
+    }
+  }
+
+  private val sender: Actor = actor {
+    loop {
+      react {
+        case uri: URI => reply { send_request(uri) }
+        case Stop => exit('stop)
+        case _ => log warn "Unknown message received"
+      }
+    }
+  }
+}
+
+class ContentHandler extends Actor {
+  val log = LoggerFactory.getLogger(classOf[ContentHandler])
+  val inspectionDateFormat = Array[String]("EEEEE, MMMMM dd, yyyy")
+
+  def created_modified_dates: Map[String, String] = {
+    val timestamp = DateUtils.formatDate(new Date())
+    Map(JsonConstants.MODIFIED -> timestamp,
+     JsonConstants.CREATED -> timestamp)
+  }
+
+  def convert_last_inspection(lastInspection: String): String = {
+    try {
+      log debug "Parsing date: " + lastInspection
+      val parsedDate = DateUtils.parseDate(lastInspection, inspectionDateFormat)
+      DateUtils.formatDate(parsedDate)
+    } catch {
+      case e: DateParseException =>
+        log warn "Could not parse inspection date: " + lastInspection
+        lastInspection // Use the original value
+    }
+  }
+
+  def is_valid_response(json: Map[String, Any]): Boolean = {
+    json.get("query") match {
+      case Some(query: Map[String, _]) =>
+        query.get("count") match {
+          case Some("1") => true
+          case _ => false
+        }
+      case _ => false
+    }
+  }
+
+  def get_establishment(json: Map[String, Any]): Map[String, Any] = {
+    val query = json.get("query") match {
+      case Some(m: Map[String, _]) => m
+      case _ => Map[String, Any]()
+    }
+
+    val results = query.get("results") match {
+      case Some(m: Map[String, _]) => m
+      case _ => Map[String, Any]()
+    }
+
+    results.get("establishment") match {
+      case Some(m: Map[String, _]) => m
+      case _ => Map[String, Any]()
+    }
+  }
+
+  def handle_response(s: ResultString): Map[String, Any] = {
+    val json = Json.parse(s.value) match {
+      case Some(j: Map[String, _]) => j
+      case _ => Map[String, Any]()
+    }
+
+    if (is_valid_response(json)) {
+      log info "Received valid response for eid = " + s.eid
+
+      val establishment = get_establishment(json)
+      val lastInspected = establishment.get(JsonConstants.LAST_INSPECTION)
+      val formattedInspectedDate = lastInspected match {
+        case Some(s: String) => convert_last_inspection(s)
+        case _ => ""
+      }
+
+      establishment ++ created_modified_dates + (JsonConstants.LAST_INSPECTION -> formattedInspectedDate)
+    } else {
+      log warn "No result for eid = " + s.eid
+      created_modified_dates + ("eid" -> s.eid)
+    }
+  }
+
+  def act() {
+    while (true) {
+      receive {
+        case s: ResultString => handle_response(s)
+        case _ =>
+      }
+    }
+  }
+}
 
 object Workers {
   val log = LoggerFactory.getLogger(this.getClass)
   val eidRegex = "!eid!".r
-  val client = new DefaultHttpClient()
-
-  /**
-   * Send a single request to the YQL API for food rating data
-   */
-  def send_request_for(eid: Int): String = {
-    val urlTemplate = """http://query.yahooapis.com/v1/public/yql/jonbca/ratings?format=json&eid=!eid!"""
-    val dataUrl = eidRegex.replaceFirstIn(urlTemplate, eid.toString)
-    val getter = new HttpGet(dataUrl)
-    val response = client.execute(getter)
-
-    log info "Retrieving json data for " + eid.toString
-    EntityUtils.toString(response.getEntity)
-  }
 
   /**
    * Process a response from the YQL server
    */
   val ResponseProcessor = actor {
-    val inspectionDateFormat = Array[String]("EEEEE, MMMMM dd, yyyy")
 
     loop {
       react {
@@ -81,15 +193,8 @@ object Workers {
                   establishment.get(JsonConstants.LAST_INSPECTION) match {
                     case Some(lastInspection: String) =>
                       log debug "Found inspection date of " + lastInspection
-                      val inspectionDate = try {
-                        val parsedDate = DateUtils.parseDate(lastInspection, inspectionDateFormat)
-                        DateUtils.formatDate(parsedDate)
-                      } catch {
-                        case e: DateParseException =>
-                          log warn "Could not parse inspection date: " + lastInspection
-                          lastInspection // Use the original value
-                      }
-                      establishment + ((JsonConstants.LAST_INSPECTION, inspectionDate))
+                      val inspectionDate =
+                      establishment + ((JsonConstants.LAST_INSPECTION, ""))
                     case _ =>
                       log warn "No inspection date key found"
                       establishment
@@ -108,10 +213,10 @@ object Workers {
             case _ => Map("eid" -> response.eid)
           }
 
-          DataWriter ! ParsedResult(response.eid, output ++ Map(JsonConstants.CREATED -> timestamp,
-            JsonConstants.MODIFIED -> timestamp))
+          //DataWriter ! ParsedResult(response.eid, output ++ Map(JsonConstants.CREATED -> timestamp,
+          //  JsonConstants.MODIFIED -> timestamp))
         }
-        case Complete => exit()
+        case Stop => exit('stop)
         case _ => log warn "Unknown message received"
       }
     }
@@ -127,7 +232,7 @@ object Workers {
         case data: ParsedResult =>
           log info "Inserting JSON data for eid: " + data.eid
           writeData(data.eid, data.value)
-        case Complete => exit()
+        case Stop => exit('stop)
         case _ => log info "Insert"
       }
     }
