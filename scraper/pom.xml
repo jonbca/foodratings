@@ -42,6 +42,11 @@
             <artifactId>scala-library</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-compiler</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
@@ -58,16 +63,31 @@
             <artifactId>httpcore</artifactId>
         </dependency>
         <dependency>
+            <groupId>oauth.signpost</groupId>
+            <artifactId>signpost-commonshttp4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>net.liftweb</groupId>
+            <artifactId>lift-json_${scala.version}</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.twitter</groupId>
             <artifactId>json</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.github.scala-incubator.io</groupId>
-            <artifactId>file_${scala.version}</artifactId>
+            <groupId>org.scala-tools.testing</groupId>
+            <artifactId>specs_${scala.version}</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.github.scala-incubator.io</groupId>
-            <artifactId>core_${scala.version}</artifactId>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -76,6 +96,18 @@
             <plugin>
                 <groupId>org.scala-tools</groupId>
                 <artifactId>maven-scala-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <useSystemClassLoader>false</useSystemClassLoader>
+                    <argLine>-mx512m</argLine>
+                    <includes>
+                        <include>**/*Unit.java</include>
+                        <include>**/*Spec.java</include>
+                    </includes>
+                    <detail>true</detail>
+                </configuration>
             </plugin>
         </plugins>
     </build>
