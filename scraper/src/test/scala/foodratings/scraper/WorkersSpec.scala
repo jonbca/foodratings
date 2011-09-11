@@ -249,5 +249,50 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
       result must have the key("modified")
       result must not have the key("last_inspection")
     }
+
+    "process query as an actor" in {
+      val handler = new ContentHandler()
+      handler.start()
+
+      val parseResult = handler !? new ResultString(67804, """
+       {
+       "query": {
+        "count": 1,
+        "created": "2011-09-11T14:14:34Z",
+        "lang": "en-US",
+        "results": {
+         "establishment": {
+          "eid": "67804",
+          "address1": "All Saints Centre 3 All Saints Street Norwich",
+          "address2": null,
+          "address3": null,
+          "address4": null,
+          "name": "All Saints Centre (Drop In Centre With Cafe)",
+          "postcode": "NR1 3LJ",
+          "type": "Restaurant/Cafe/Canteen",
+          "last_inspection": "Friday, July 17, 2009",
+          "local_auth_name": "Norwich City",
+          "local_auth_email": "mailto:EHealth@norwich.gov.uk",
+          "local_auth_url": "http://www.norwich.gov.uk/foodhygieneratings",
+          "rating": {
+           "type": "fhr",
+           "content": "5"
+          }
+         }
+        }
+       }
+      }""") match {
+        case s: Map[String, Any] => s
+        case _ => Map[String, Any]()
+      }
+
+      handler ! Stop
+
+      print(parseResult)
+
+      parseResult must have the key("eid")
+      parseResult must have the key("last_inspection")
+      parseResult must have the key("created")
+    }
   }
 }

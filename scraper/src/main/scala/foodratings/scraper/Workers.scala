@@ -172,9 +172,10 @@ class ContentHandler extends Actor {
   }
 
   def act() {
-    while (true) {
-      receive {
-        case s: ResultString => handle_response(s)
+    loop {
+      react {
+        case s: ResultString => reply {handle_response(s)}
+        case Stop => exit('stop)
         case _ =>
       }
     }
