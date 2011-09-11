@@ -27,11 +27,13 @@ import org.apache.http.{HttpEntity, HttpResponse, StatusLine}
 import java.io.ByteArrayInputStream
 import org.apache.http.client.methods.HttpGet
 import java.net.URI
-import org.specs.{SpecificationWithJUnit, Specification}
-import net.liftweb.json.{JsonAST, JsonParser}
+import org.specs.SpecificationWithJUnit
 import org.apache.http.impl.cookie.DateUtils
+import org.slf4j.LoggerFactory
 
 class WorkersSpec extends SpecificationWithJUnit with Mockito {
+  val log = LoggerFactory.getLogger("test")
+
   def clientGen(statusCode: Int): () => HttpClient = {
     val mockStatusLine = mock[StatusLine]
     val mockResponse = mock[HttpResponse]
@@ -78,15 +80,13 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
 
       val modified = dates.get(JsonConstants.MODIFIED) match {
         case Some(s: String) => s
-        case None => fail()
+        case _ => fail()
       }
 
-      val created = dates.get(JsonConstants.CREATED) match {
-        case Some(s: String) => s
-        case None => fail()
+      dates.get(JsonConstants.CREATED) match {
+        case Some(s: String) => s mustEqual modified
+        case _ => fail()
       }
-
-      created mustEqual modified
     }
 
     "created and modified dates must be JS dates" in {
@@ -95,34 +95,45 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
 
       val modified = dates.get(JsonConstants.MODIFIED) match {
         case Some(s: String) => s
-        case None => fail()
+        case _ => fail()
       }
 
-      val created = dates.get(JsonConstants.CREATED) match {
-        case Some(s: String) => s
-        case None => fail()
+      dates.get(JsonConstants.CREATED) match {
+        case Some(s: String) =>
+          s mustNotEq ""
+          DateUtils.parseDate(s) mustEqual DateUtils.parseDate(modified)
+        case _ => fail()
       }
-
-      created mustNotEq ""
-      DateUtils.parseDate(created) mustEqual DateUtils.parseDate(modified)
     }
 
     "convert valid inspection dates" in {
       val handler = new ContentHandler()
       val testDate = "Sunday, September 11, 2011"
 
-      val convertedDate = handler.convert_last_inspection(testDate)
-
-      convertedDate mustEqual("Sun, 11 Sep 2011 00:00:00 GMT")
+      handler.convert_last_inspection(testDate) match {
+        case Some(s: String) => s mustEqual "Sun, 11 Sep 2011 00:00:00 GMT"
+        case None => fail()
+      }
     }
 
-    "fail on invalid inspection dates" in {
+    "correct invalid weekday" in {
       val handler = new ContentHandler()
       val testDate = "Friday, November 18, 2019"
 
-      val convertedDate = handler.convert_last_inspection(testDate)
+      handler.convert_last_inspection(testDate) match {
+        case Some(s: String) => s mustEqual "Mon, 18 Nov 2019 00:00:00 GMT"
+        case None => fail()
+      }
+    }
 
-      convertedDate mustEqual testDate
+    "not munge poorly-formed date" in {
+      val handler = new ContentHandler()
+      val testDate = "123456 garbage here"
+
+      handler.convert_last_inspection(testDate) match {
+        case Some(_) => fail()
+        case None => //pass
+      }
     }
   }
 }

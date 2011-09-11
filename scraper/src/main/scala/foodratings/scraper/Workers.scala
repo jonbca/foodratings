@@ -91,15 +91,15 @@ class ContentHandler extends Actor {
      JsonConstants.CREATED -> timestamp)
   }
 
-  def convert_last_inspection(lastInspection: String): String = {
+  def convert_last_inspection(lastInspection: String): Option[String] = {
     try {
       log debug "Parsing date: " + lastInspection
       val parsedDate = DateUtils.parseDate(lastInspection, inspectionDateFormat)
-      DateUtils.formatDate(parsedDate)
+      Some(DateUtils.formatDate(parsedDate))
     } catch {
-      case e: DateParseException =>
-        log warn "Could not parse inspection date: " + lastInspection
-        lastInspection // Use the original value
+      case e =>
+        log error("Could not parse inspection date: " + lastInspection, e)
+        None
     }
   }
 
@@ -143,8 +143,11 @@ class ContentHandler extends Actor {
       val establishment = get_establishment(json)
       val lastInspected = establishment.get(JsonConstants.LAST_INSPECTION)
       val formattedInspectedDate = lastInspected match {
-        case Some(s: String) => convert_last_inspection(s)
-        case _ => ""
+        case Some(s: String) => convert_last_inspection(s) match {
+          case Some(s: String) => s
+          case _ => Nil
+        }
+        case _ => Nil
       }
 
       establishment ++ created_modified_dates + (JsonConstants.LAST_INSPECTION -> formattedInspectedDate)
