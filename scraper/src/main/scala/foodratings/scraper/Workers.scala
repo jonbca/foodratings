@@ -26,13 +26,12 @@ import actors.Actor._
 import org.apache.http.util.EntityUtils
 import com.twitter.json.Json
 import java.util.Date
-import org.apache.http.impl.cookie.{DateParseException, DateUtils}
+import org.apache.http.impl.cookie.DateUtils
 import org.slf4j.LoggerFactory
 import actors.Actor
 import org.apache.http.client.HttpClient
 import org.apache.http.client.methods.HttpGet
 import java.net.URI
-import oauth.signpost.OAuthConsumer
 import org.apache.http.HttpRequest
 
 case class ResultString(eid: Int, value: String)
