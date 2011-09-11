@@ -39,15 +39,25 @@ case class ParsedResult(eid: Int, value: Map[String, _])
 
 case object Stop
 
+/**
+ * Sends an HTTP request
+ */
 class RequestSender(clientGenerator: (()=> HttpClient)) {
   val log = LoggerFactory.getLogger(this.getClass)
   val client = clientGenerator()
 
+  /**
+   * Send an HTTP request and wait for a response
+   */
   def get(uri: URI): Option[String] = {
-    sender !? uri match {
+    requestSender !? uri match {
       case x: Some[String] => x
       case _ => None
     }
+  }
+
+  def stop() {
+    requestSender ! Stop
   }
 
   private def send_request(uri: URI): Option[String] = {
@@ -70,7 +80,7 @@ class RequestSender(clientGenerator: (()=> HttpClient)) {
     }
   }
 
-  private val sender: Actor = actor {
+  private val requestSender: Actor = actor {
     loop {
       react {
         case uri: URI => reply { send_request(uri) }
@@ -174,7 +184,7 @@ class ContentHandler extends Actor {
   def act() {
     loop {
       react {
-        case s: ResultString => reply {handle_response(s)}
+        case s: ResultString => reply {new ParsedResult(s.eid, handle_response(s))}
         case Stop => exit('stop)
         case _ =>
       }
@@ -190,51 +200,22 @@ object Workers {
    * Process a response from the YQL server
    */
   val ResponseProcessor = actor {
+    val handler = new ContentHandler()
+    handler.start()
+    DataWriter.start()
 
     loop {
       react {
         case response: ResultString => {
-          log info "Received response for eid = " + response.eid
-          val timestamp = DateUtils.formatDate(new Date()) // for created & modified
-
-          val results = Json.parse(response.value)
-
-          val output = results match {
-            case results: Map[String, _] => results.get("query") match {
-              case Some(q: Map[String, _]) => q.get("count") match {
-                case Some(1) =>
-                  log info "Successful result for eid = " + response.eid
-                  val establishment = q.asInstanceOf[Map[String, _]].get("results").get
-                    .asInstanceOf[Map[String, _]].get("establishment").get.asInstanceOf[Map[String, _]]
-
-                  /* Reformat the Last Inspection date to Javascript standard */
-                  establishment.get(JsonConstants.LAST_INSPECTION) match {
-                    case Some(lastInspection: String) =>
-                      log debug "Found inspection date of " + lastInspection
-                      val inspectionDate =
-                      establishment + ((JsonConstants.LAST_INSPECTION, ""))
-                    case _ =>
-                      log warn "No inspection date key found"
-                      establishment
-                  }
-                case _ =>
-                  log info "Invalid number of records for eid = " + response.eid
-                  log debug "Response is " + response.value
-                  Map("eid" -> response.eid)
-              }
-              case _ =>
-                log info "No query key in response map for eid = " + response.eid
-                log debug "Response for eid " + response.eid + " was " + response.value
-                Map("eid" -> response.eid)
-            }
-
-            case _ => Map("eid" -> response.eid)
-          }
-
-          //DataWriter ! ParsedResult(response.eid, output ++ Map(JsonConstants.CREATED -> timestamp,
-          //  JsonConstants.MODIFIED -> timestamp))
+          handler ! response
         }
-        case Stop => exit('stop)
+        case result: ParsedResult => {
+          DataWriter ! result
+        }
+        case Stop =>
+          handler ! Stop
+          DataWriter ! Stop
+          exit('stop)
         case _ => log warn "Unknown message received"
       }
     }
@@ -251,7 +232,7 @@ object Workers {
           log info "Inserting JSON data for eid: " + data.eid
           writeData(data.eid, data.value)
         case Stop => exit('stop)
-        case _ => log info "Insert"
+        case _ => log info "Unknown message received"
       }
     }
   }

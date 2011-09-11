@@ -23,25 +23,31 @@ package foodratings.scraper
  */
 
 import org.slf4j.LoggerFactory
+import org.apache.http.impl.client.DefaultHttpClient
+import java.net.URI
 
 object Scraper extends App {
   override def main(args: Array[String]) {
     val log = LoggerFactory.getLogger(this.getClass)
 
-    Workers.ResponseProcessor.start
-    Workers.DataWriter.start
+    Workers.ResponseProcessor.start()
+
+    val sender = new RequestSender({() => new DefaultHttpClient()})
 
     log info "Started!"
     for (i <- 0 to 10) {
       val eid = 263027 + i
       log info "Sending request for " + eid
-      val xmlResponse = Workers.send_request_for(eid)
-      Workers.ResponseProcessor ! ResultString(eid, xmlResponse)
-      Thread.sleep(200)
+
+      val uri = new URI("http://query.yahooapis.com/v1/public/yql/jonbca/ratings?format=json&eid=" + eid.toString)
+      sender.get(uri) match {
+        case Some(s: String) => Workers.ResponseProcessor ! ResultString(eid, s)
+        case _ => log warn "No result for eid = " + eid
+      }
     }
 
-    Workers.ResponseProcessor ! Complete
-    Workers.DataWriter ! Complete
+    sender.stop()
+    Workers.ResponseProcessor ! Stop
     log info "Done!"
   }
 }
