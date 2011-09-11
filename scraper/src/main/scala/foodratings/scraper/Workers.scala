@@ -98,7 +98,7 @@ class ContentHandler extends Actor {
       Some(DateUtils.formatDate(parsedDate))
     } catch {
       case e =>
-        log error("Could not parse inspection date: " + lastInspection, e)
+        log warn("Could not parse inspection date: " + lastInspection)
         None
     }
   }
@@ -107,10 +107,14 @@ class ContentHandler extends Actor {
     json.get("query") match {
       case Some(query: Map[String, _]) =>
         query.get("count") match {
-          case Some("1") => true
-          case _ => false
+          case Some(1) => true
+          case s =>
+            log info "Count matched, but check failed: " + s
+            false
         }
-      case _ => false
+      case s =>
+        log info "Query did not match, Count check failed: " + s
+        false
     }
   }
 
@@ -133,7 +137,7 @@ class ContentHandler extends Actor {
 
   def handle_response(s: ResultString): Map[String, Any] = {
     val json = Json.parse(s.value) match {
-      case Some(j: Map[String, _]) => j
+      case j: Map[String, _] => j
       case _ => Map[String, Any]()
     }
 
@@ -143,12 +147,16 @@ class ContentHandler extends Actor {
       val establishment = get_establishment(json)
       val lastInspected = establishment.get(JsonConstants.LAST_INSPECTION)
       val formattedInspectedDate = lastInspected match {
-        case Some(s: String) => convert_last_inspection(s) match {
-          case Some(s: String) => s
-          case _ => Nil
-        }
+        case Some(s: String) =>
+          log debug "Processing unformatted date: " + s
+          convert_last_inspection(s) match {
+            case Some(s: String) => s
+            case _ => Nil
+          }
         case _ => Nil
       }
+
+      log debug "Processed formatted inspection date to " + formattedInspectedDate
 
       establishment ++ created_modified_dates + (JsonConstants.LAST_INSPECTION -> formattedInspectedDate)
     } else {

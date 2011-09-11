@@ -141,7 +141,7 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
       val handler = new ContentHandler()
       val json = Json.parse("""{ "query":
           {
-            "count": "1"
+            "count": 1
           }
         }
       """) match {
@@ -151,16 +151,14 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
           fail()
       }
 
-      log info "Valid response? " + handler.is_valid_response(json).toString()
-
-      handler.is_valid_response(json) mustBe true
+      handler.is_valid_response(json) must be(true)
     }
 
     "return false for an invalid response" in {
       val handler = new ContentHandler()
       val json = Json.parse("""{ "query":
           {
-            "count": "999"
+            "count": 999
           }
         }
       """) match {
@@ -170,9 +168,74 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
           fail()
       }
 
-      log info "Valid response? " + handler.is_valid_response(json).toString()
+      handler.is_valid_response(json) must be(false)
+    }
 
-      handler.is_valid_response(json) mustBe false
+    "get the establishment from a well-formed JSON response" in {
+      val handler = new ContentHandler()
+      val json = Json.parse("""
+        {
+        "query": {
+          "count": 1,
+          "results": {
+            "establishment": {
+                "hello": "world"
+              }
+            }
+          }
+        }
+      """) match {
+        case e: Map[String, Any] => e
+        case None => fail()
+      }
+
+      val establishment = handler.get_establishment(json)
+      establishment must have the key("hello")
+    }
+
+    "handle well-formed and valid JSON response" in {
+      val handler = new ContentHandler()
+      val json = """
+       {
+       "query": {
+        "count": 1,
+        "created": "2011-09-11T14:14:34Z",
+        "lang": "en-US",
+        "results": {
+         "establishment": {
+          "eid": "67804",
+          "address1": "All Saints Centre 3 All Saints Street Norwich",
+          "address2": null,
+          "address3": null,
+          "address4": null,
+          "name": "All Saints Centre (Drop In Centre With Cafe)",
+          "postcode": "NR1 3LJ",
+          "type": "Restaurant/Cafe/Canteen",
+          "last_inspection": "Friday, July 17, 2009",
+          "local_auth_name": "Norwich City",
+          "local_auth_email": "mailto:EHealth@norwich.gov.uk",
+          "local_auth_url": "http://www.norwich.gov.uk/foodhygieneratings",
+          "rating": {
+           "type": "fhr",
+           "content": "5"
+          }
+         }
+        }
+       }
+      }"""
+
+      val result = handler.handle_response(new ResultString(67804, json))
+
+      result must have the key("eid")
+      result must have the key("last_inspection")
+      result must have the key("modified")
+      result must have the key("created")
+      result must have the key("rating")
+
+      result get "last_inspection" match {
+        case Some(s: String) => s mustEqual "Fri, 17 Jul 2009 00:00:00 GMT"
+        case _ => fail()
+      }
     }
   }
 }
