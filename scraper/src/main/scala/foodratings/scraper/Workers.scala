@@ -32,6 +32,8 @@ import actors.Actor
 import org.apache.http.client.HttpClient
 import org.apache.http.client.methods.HttpGet
 import java.net.URI
+import oauth.signpost.OAuthConsumer
+import org.apache.http.HttpRequest
 
 case class ResultString(eid: Int, value: String)
 
@@ -42,7 +44,7 @@ case object Stop
 /**
  * Sends an HTTP request
  */
-class RequestSender(clientGenerator: (()=> HttpClient)) {
+class RequestSender(clientGenerator: (()=> HttpClient), sign: (HttpRequest => Any)) {
   val log = LoggerFactory.getLogger(this.getClass)
   val client = clientGenerator()
 
@@ -62,6 +64,7 @@ class RequestSender(clientGenerator: (()=> HttpClient)) {
 
   private def send_request(uri: URI): Option[String] = {
     val request = new HttpGet(uri)
+    sign(request)
 
     try {
       val response = client.execute(request)

@@ -58,7 +58,7 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
 
   "RequestSender" should {
     "respond with content for success code" in {
-      val sender = new RequestSender(clientGen(200))
+      val sender = new RequestSender(clientGen(200), (_ => ""))
       sender.get(new URI("http://www.example.org")) match {
         case Some(x: String) => x mustEqual "Hello, world!"
         case _ => fail()
@@ -66,7 +66,7 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
     }
 
     "respond with no content for error code" in {
-      val sender = new RequestSender(clientGen(404))
+      val sender = new RequestSender(clientGen(404), (_ => ""))
       sender.get(new URI("http://www.example.org")) match {
         case None =>
         case _ => fail()
@@ -282,7 +282,7 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
         }
        }
       }""") match {
-        case s: Map[String, Any] => s
+        case ParsedResult(67804, s) => s
         case _ => Map[String, Any]()
       }
 

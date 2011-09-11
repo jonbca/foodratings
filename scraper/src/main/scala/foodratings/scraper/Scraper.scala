@@ -25,21 +25,29 @@ package foodratings.scraper
 import org.slf4j.LoggerFactory
 import org.apache.http.impl.client.DefaultHttpClient
 import java.net.URI
+import oauth.signpost.commonshttp.CommonsHttpOAuthConsumer
+import org.apache.http.HttpRequest
 
 object Scraper extends App {
   override def main(args: Array[String]) {
     val log = LoggerFactory.getLogger(this.getClass)
+    val signer = { request: HttpRequest =>
+      val consumer = new CommonsHttpOAuthConsumer(ScraperConfiguration.consumer_key, ScraperConfiguration.consumer_secret)
+      consumer.sign(request)
+    }
 
+    log info "Initialising"
     Workers.ResponseProcessor.start()
 
-    val sender = new RequestSender({() => new DefaultHttpClient()})
+    val sender = new RequestSender({() => new DefaultHttpClient()}, signer)
+    val eidRegex = "\\{eid\\}".r
 
     log info "Started!"
     for (i <- 0 to 10) {
       val eid = 263027 + i
       log info "Sending request for " + eid
 
-      val uri = new URI("http://query.yahooapis.com/v1/public/yql/jonbca/ratings?format=json&eid=" + eid.toString)
+      val uri = new URI(eidRegex.replaceFirstIn(ScraperConfiguration.private_url, eid.toString))
       sender.get(uri) match {
         case Some(s: String) => Workers.ResponseProcessor ! ResultString(eid, s)
         case _ => log warn "No result for eid = " + eid
