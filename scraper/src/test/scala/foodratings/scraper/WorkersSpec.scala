@@ -30,6 +30,7 @@ import java.net.URI
 import org.specs.SpecificationWithJUnit
 import org.apache.http.impl.cookie.DateUtils
 import org.slf4j.LoggerFactory
+import com.twitter.json.Json
 
 class WorkersSpec extends SpecificationWithJUnit with Mockito {
   val log = LoggerFactory.getLogger("test")
@@ -134,6 +135,44 @@ class WorkersSpec extends SpecificationWithJUnit with Mockito {
         case Some(_) => fail()
         case None => //pass
       }
+    }
+
+    "return true for a valid response" in {
+      val handler = new ContentHandler()
+      val json = Json.parse("""{ "query":
+          {
+            "count": "1"
+          }
+        }
+      """) match {
+        case s: Map[String, Any] => s
+        case _ =>
+          log error "JSON did not parse"
+          fail()
+      }
+
+      log info "Valid response? " + handler.is_valid_response(json).toString()
+
+      handler.is_valid_response(json) mustBe true
+    }
+
+    "return false for an invalid response" in {
+      val handler = new ContentHandler()
+      val json = Json.parse("""{ "query":
+          {
+            "count": "999"
+          }
+        }
+      """) match {
+        case s: Map[String, Any] => s
+        case _ =>
+          log error "JSON did not parse"
+          fail()
+      }
+
+      log info "Valid response? " + handler.is_valid_response(json).toString()
+
+      handler.is_valid_response(json) mustBe false
     }
   }
 }
