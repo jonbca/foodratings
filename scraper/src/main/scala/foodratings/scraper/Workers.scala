@@ -161,7 +161,7 @@ class ContentHandler extends Actor {
       establishment ++ created_modified_dates + (JsonConstants.LAST_INSPECTION -> formattedInspectedDate)
     } else {
       log warn "No result for eid = " + s.eid
-      created_modified_dates + ("eid" -> s.eid.toString())
+      created_modified_dates + ("eid" -> s.eid.toString)
     }
   }
 
