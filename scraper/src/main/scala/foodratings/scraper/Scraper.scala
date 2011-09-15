@@ -33,13 +33,14 @@ import actors.Futures.future
 object Scraper extends App {
   override def main(args: Array[String]) {
     val log = LoggerFactory.getLogger(this.getClass)
+
     val signer = { request: HttpRequest =>
       val consumer = new CommonsHttpOAuthConsumer(ScraperConfiguration.consumer_key, ScraperConfiguration.consumer_secret)
       consumer.sign(request)
     }
 
     log info "Initialising"
-    Workers.ResponseProcessor.start()
+    ResponseProcessor.start()
 
     val eidRegex = "\\{eid\\}".r
     val requestSender = new RequestSender({() => new DefaultHttpClient()}, signer)
@@ -48,21 +49,26 @@ object Scraper extends App {
     val uriGetters = {
       for (eid <- 263027 to 263037) yield
         future {
+          log info "Executing for eid: " + eid
           requestSender.get(new URI(eidRegex.replaceFirstIn(ScraperConfiguration.private_url, eid.toString))) match {
-            case Some(s: String) => ResultString(eid, s)
-            case _ => ResultString(eid, "")
+            case Some(s: String) =>
+              log info  "Received response for eid: " + eid
+              ResultString(eid, s)
+            case _ =>
+              log info  "Received NO response for eid: " + eid
+              ResultString(eid, "")
           }
         }
     }
 
     uriGetters foreach {
       f: Future[ResultString] => f() match {
-        case r @ ResultString(eid, "") => log warn "No result for eid: " + r.eid
-        case r: ResultString => Workers.ResponseProcessor ! r
+        case ResultString(eid, "") => log warn "No result for eid: " + eid
+        case r: ResultString => ResponseProcessor ! r
       }
     }
 
-    Workers.ResponseProcessor ! Stop
+    ResponseProcessor ! Stop
     log info "Done!"
   }
 }

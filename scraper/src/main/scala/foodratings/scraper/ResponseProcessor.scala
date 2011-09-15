@@ -22,7 +22,6 @@ package foodratings.scraper
  * THE SOFTWARE.
  */
 
-import actors.Actor._
 import org.apache.http.util.EntityUtils
 import com.twitter.json.Json
 import java.util.Date
@@ -33,6 +32,9 @@ import org.apache.http.client.methods.HttpGet
 import java.net.URI
 import org.apache.http.HttpRequest
 import actors.Actor
+import com.mongodb.casbah.MongoConnection
+import com.mongodb.casbah.commons.MongoDBObject
+import com.mongodb.casbah.commons.Imports.DBObject
 
 case class ResultString(eid: Int, value: String)
 
@@ -47,7 +49,7 @@ class RequestSender(clientGenerator: (()=> HttpClient), sign: (HttpRequest => An
   val log = LoggerFactory.getLogger(this.getClass)
 
   /**
-   * Send an HTTP request and wait for a response
+   * Send an HTTP request
    */
   def get(uri: URI): Option[String] = {
     send_request(clientGenerator(), uri)
@@ -79,17 +81,17 @@ class ContentHandler extends Actor {
   val log = LoggerFactory.getLogger(classOf[ContentHandler])
   val inspectionDateFormat = Array[String]("EEEEE, MMMMM dd, yyyy")
 
-  def created_modified_dates: Map[String, String] = {
-    val timestamp = DateUtils.formatDate(new Date())
+  def created_modified_dates: Map[String, Any] = {
+    val timestamp = new Date()
     Map(JsonConstants.MODIFIED -> timestamp,
      JsonConstants.CREATED -> timestamp)
   }
 
-  def convert_last_inspection(lastInspection: String): Option[String] = {
+  def convert_last_inspection(lastInspection: String): Option[Date] = {
     try {
       log debug "Parsing date: " + lastInspection
       val parsedDate = DateUtils.parseDate(lastInspection, inspectionDateFormat)
-      Some(DateUtils.formatDate(parsedDate))
+      Some(parsedDate)
     } catch {
       case e =>
         log warn("Could not parse inspection date: " + lastInspection)
@@ -150,7 +152,7 @@ class ContentHandler extends Actor {
         case Some(s: String) =>
           log debug "Processing unformatted date: " + s
           convert_last_inspection(s) match {
-            case Some(s: String) => s
+            case Some(s: Date) => s
             case _ => Nil
           }
         case _ => Nil
@@ -158,10 +160,10 @@ class ContentHandler extends Actor {
 
       log debug "Processed formatted inspection date to " + formattedInspectedDate
 
-      establishment ++ created_modified_dates + (JsonConstants.LAST_INSPECTION -> formattedInspectedDate)
+      establishment ++ created_modified_dates + (JsonConstants.LAST_INSPECTION -> formattedInspectedDate) + ("eid" -> s.eid)
     } else {
       log warn "No result for eid = " + s.eid
-      created_modified_dates + ("eid" -> s.eid.toString)
+      created_modified_dates + ("eid" -> s.eid)
     }
   }
 
@@ -182,6 +184,29 @@ trait DataWriter {
   }
 }
 
+class MongoWriter(database: String, collection: String) extends DataWriter {
+  val mongoConn = MongoConnection()
+  val mongo_db = mongoConn(database)
+  val mongo_coll = mongo_db(collection)
+  val log = LoggerFactory.getLogger(this.getClass)
+
+  def to_mongo_object(data: Map[String, _]): DBObject = {
+    val obj = MongoDBObject.newBuilder
+
+    data foreach {
+      case (key: String, value: Map[String, _]) => obj += (key -> to_mongo_object (value))
+      case m @ (_, _) => obj += m
+      case m => log error "Don't know how to map to Mongo object: " + m
+    }
+
+    obj.result()
+  }
+
+  override def write(data: Map[String, _]) {
+    mongo_coll += to_mongo_object(data)
+  }
+}
+
 class DataHandler(writer: DataWriter) extends Actor {
   def act() {
     loop {
@@ -194,19 +219,17 @@ class DataHandler(writer: DataWriter) extends Actor {
   }
 }
 
-object Workers {
+/**
+ * Process a response from the YQL server
+ */
+object ResponseProcessor extends Actor {
   val log = LoggerFactory.getLogger(this.getClass)
-  val eidRegex = "!eid!".r
+  val handler = new ContentHandler()
+  val dataHandler = new DataHandler(new MongoWriter("foodratings", "ratings_test"))
+  handler.start()
+  dataHandler.start()
 
-  /**
-   * Process a response from the YQL server
-   */
-  val ResponseProcessor = actor {
-    val handler = new ContentHandler()
-    handler.start()
-    val dataHandler = new DataHandler(new DataWriter() {})
-    dataHandler.start()
-
+  def act() {
     loop {
       react {
         case response: ResultString => {
@@ -226,3 +249,4 @@ object Workers {
     }
   }
 }
+
