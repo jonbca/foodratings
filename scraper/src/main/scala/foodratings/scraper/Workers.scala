@@ -28,11 +28,11 @@ import com.twitter.json.Json
 import java.util.Date
 import org.apache.http.impl.cookie.DateUtils
 import org.slf4j.LoggerFactory
-import actors.Actor
 import org.apache.http.client.HttpClient
 import org.apache.http.client.methods.HttpGet
 import java.net.URI
 import org.apache.http.HttpRequest
+import actors.Actor
 
 case class ResultString(eid: Int, value: String)
 
@@ -45,23 +45,15 @@ case object Stop
  */
 class RequestSender(clientGenerator: (()=> HttpClient), sign: (HttpRequest => Any)) {
   val log = LoggerFactory.getLogger(this.getClass)
-  val client = clientGenerator()
 
   /**
    * Send an HTTP request and wait for a response
    */
   def get(uri: URI): Option[String] = {
-    requestSender !? uri match {
-      case x: Some[String] => x
-      case _ => None
-    }
+    send_request(clientGenerator(), uri)
   }
 
-  def stop() {
-    requestSender ! Stop
-  }
-
-  private def send_request(uri: URI): Option[String] = {
+  private def send_request(client: HttpClient, uri: URI): Option[String] = {
     val request = new HttpGet(uri)
     sign(request)
 
@@ -79,16 +71,6 @@ class RequestSender(clientGenerator: (()=> HttpClient), sign: (HttpRequest => An
       case e =>
         log.error("Request for " + uri + " failed.", e)
         None
-    }
-  }
-
-  private val requestSender: Actor = actor {
-    loop {
-      react {
-        case uri: URI => reply { send_request(uri) }
-        case Stop => exit('stop)
-        case _ => log warn "Unknown message received"
-      }
     }
   }
 }
@@ -179,7 +161,7 @@ class ContentHandler extends Actor {
       establishment ++ created_modified_dates + (JsonConstants.LAST_INSPECTION -> formattedInspectedDate)
     } else {
       log warn "No result for eid = " + s.eid
-      created_modified_dates + ("eid" -> s.eid)
+      created_modified_dates + ("eid" -> s.eid.toString())
     }
   }
 
@@ -187,6 +169,24 @@ class ContentHandler extends Actor {
     loop {
       react {
         case s: ResultString => reply {new ParsedResult(s.eid, handle_response(s))}
+        case Stop => exit('stop)
+        case _ =>
+      }
+    }
+  }
+}
+
+trait DataWriter {
+  def write(data: Map[String, _]) {
+    print(Json.build(data) + "\n")
+  }
+}
+
+class DataHandler(writer: DataWriter) extends Actor {
+  def act() {
+    loop {
+      react {
+        case data: ParsedResult => writer.write(data.value)
         case Stop => exit('stop)
         case _ =>
       }
@@ -204,37 +204,24 @@ object Workers {
   val ResponseProcessor = actor {
     val handler = new ContentHandler()
     handler.start()
-    DataWriter.start()
+    val dataHandler = new DataHandler(new DataWriter() {})
+    dataHandler.start()
 
     loop {
       react {
         case response: ResultString => {
+          log debug "Processing response: " + response
           handler ! response
         }
         case result: ParsedResult => {
-          DataWriter ! result
+          log debug "Writing result: " + result
+          dataHandler ! result
         }
         case Stop =>
           handler ! Stop
-          DataWriter ! Stop
+          dataHandler ! Stop
           exit('stop)
         case _ => log warn "Unknown message received"
-      }
-    }
-  }
-
-  val DataWriter = actor {
-    def writeData(eid: Int, data: Map[String, _]) {
-      println(Json.build(data))
-    }
-
-    loop {
-      react {
-        case data: ParsedResult =>
-          log info "Inserting JSON data for eid: " + data.eid
-          writeData(data.eid, data.value)
-        case Stop => exit('stop)
-        case _ => log info "Unknown message received"
       }
     }
   }

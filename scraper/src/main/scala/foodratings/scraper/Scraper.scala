@@ -27,6 +27,8 @@ import org.apache.http.impl.client.DefaultHttpClient
 import java.net.URI
 import oauth.signpost.commonshttp.CommonsHttpOAuthConsumer
 import org.apache.http.HttpRequest
+import actors.Future
+import actors.Futures.future
 
 object Scraper extends App {
   override def main(args: Array[String]) {
@@ -39,22 +41,27 @@ object Scraper extends App {
     log info "Initialising"
     Workers.ResponseProcessor.start()
 
-    val sender = new RequestSender({() => new DefaultHttpClient()}, signer)
     val eidRegex = "\\{eid\\}".r
+    val requestSender = new RequestSender({() => new DefaultHttpClient()}, signer)
 
     log info "Started!"
-    for (i <- 0 to 10) {
-      val eid = 263027 + i
-      log info "Sending request for " + eid
+    val uriGetters = {
+      for (eid <- 263027 to 263037) yield
+        future {
+          requestSender.get(new URI(eidRegex.replaceFirstIn(ScraperConfiguration.private_url, eid.toString))) match {
+            case Some(s: String) => ResultString(eid, s)
+            case _ => ResultString(eid, "")
+          }
+        }
+    }
 
-      val uri = new URI(eidRegex.replaceFirstIn(ScraperConfiguration.private_url, eid.toString))
-      sender.get(uri) match {
-        case Some(s: String) => Workers.ResponseProcessor ! ResultString(eid, s)
-        case _ => log warn "No result for eid = " + eid
+    uriGetters foreach {
+      f: Future[ResultString] => f() match {
+        case r @ ResultString(eid, "") => log warn "No result for eid: " + r.eid
+        case r: ResultString => Workers.ResponseProcessor ! r
       }
     }
 
-    sender.stop()
     Workers.ResponseProcessor ! Stop
     log info "Done!"
   }
