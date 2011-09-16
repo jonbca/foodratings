@@ -27,8 +27,7 @@ import org.apache.http.impl.client.DefaultHttpClient
 import java.net.URI
 import oauth.signpost.commonshttp.CommonsHttpOAuthConsumer
 import org.apache.http.HttpRequest
-import actors.Future
-import actors.Futures.future
+import actors.Futures
 
 object Scraper extends App {
   override def main(args: Array[String]) {
@@ -46,26 +45,20 @@ object Scraper extends App {
     val requestSender = new RequestSender({() => new DefaultHttpClient()}, signer)
 
     log info "Started!"
-    val uriGetters = {
-      for (eid <- 263027 to 263037) yield
-        future {
-          log info "Executing for eid: " + eid
-          requestSender.get(new URI(eidRegex.replaceFirstIn(ScraperConfiguration.private_url, eid.toString))) match {
-            case Some(s: String) =>
-              log info  "Received response for eid: " + eid
-              ResultString(eid, s)
-            case _ =>
-              log info  "Received NO response for eid: " + eid
-              ResultString(eid, "")
-          }
-        }
-    }
 
-    uriGetters foreach {
-      f: Future[ResultString] => f() match {
-        case ResultString(eid, "") => log warn "No result for eid: " + eid
-        case r: ResultString => ResponseProcessor ! r
+    val wait_time = 1000L
+
+    for (eid <- 263027 to 263037) {
+        log info "Scheduler sending request for eid: " + eid
+        requestSender.get(new URI(eidRegex.replaceFirstIn(ScraperConfiguration.private_url, eid.toString))) match {
+        case Some(s: String) =>
+          log info "Scheduler received response for eid: " + eid
+          ResponseProcessor ! ResultString(eid, s)
+        case _ =>
+          log info "Scheduler received NO response for eid: " + eid
       }
+
+      Futures.alarm(wait_time)()
     }
 
     ResponseProcessor ! Stop

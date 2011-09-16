@@ -179,7 +179,7 @@ class ContentHandler extends Actor {
 }
 
 trait DataWriter {
-  def write(data: Map[String, _]) {
+  def write(eid: Int, data: Map[String, _]) {
     print(Json.build(data) + "\n")
   }
 }
@@ -202,7 +202,8 @@ class MongoWriter(database: String, collection: String) extends DataWriter {
     obj.result()
   }
 
-  override def write(data: Map[String, _]) {
+  override def write(eid: Int, data: Map[String, _]) {
+    log info "Writing data for eid: " + eid
     mongo_coll += to_mongo_object(data)
   }
 }
@@ -211,7 +212,7 @@ class DataHandler(writer: DataWriter) extends Actor {
   def act() {
     loop {
       react {
-        case data: ParsedResult => writer.write(data.value)
+        case data: ParsedResult => writer.write(data.eid, data.value)
         case Stop => exit('stop)
         case _ =>
       }
