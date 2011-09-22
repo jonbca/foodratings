@@ -24,10 +24,13 @@
 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd">
     <description>Food Ratings Web App</description>
+
     <servlet>
         <servlet-name>scalatra</servlet-name>
         <servlet-class>foodratings.servlet.FoodRatingsServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
     </servlet>
+
     <servlet-mapping>
         <servlet-name>scalatra</servlet-name>
         <url-pattern>/*</url-pattern>

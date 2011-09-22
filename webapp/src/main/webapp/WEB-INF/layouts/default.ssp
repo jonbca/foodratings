@@ -1,6 +1,6 @@
+<!doctype html>
 <%@ val title: String %>
 <%@ val body: String %>
-<!doctype html>
 <!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en"> <![endif]-->
 <!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en"> <![endif]-->
 <!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en"> <![endif]-->
@@ -10,11 +10,47 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <title>${title}</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet/less" type="text/css" href="/less/bootstrap.less">
+    <script src="/js/lib/less-1.1.4.min.js"></script>
+    <link rel="shortcut icon" href="/images/favicon.ico">
 </head>
 <body>
-<% unescape(body) %>
+<div class="topbar">
+    <div class="fill">
+        <div class="container">
+            <a class="brand" href="#">Food Ratings</a>
+            <ul class="nav">
+                <li class="active"><a href="#">Home</a></li>
+                <li><a href="#about">About</a></li>
+            </ul>
+            <form action="" class="pull-right">
+                <input type="search" placeholder="Search">
+            </form>
+        </div>
+    </div>
+</div>
+<div class="container">
+    <div class="content">
+        <div class="page-header">
+            <h1>Eat at Joe's. <small>Or don't.</small></h1>
+        </div>
+        <div class="row">
+            <div class="span10">
+                <% unescape(body) %>
+            </div>
+            <div class="span4">
+                <h3>Secondary content</h3>
+            </div>
+        </div>
+    </div>
+    <footer>
+        <p>&copy; Jonathan Abourbih 2011</p>
+    </footer>
+</div>
+
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.6.3/jquery.min.js"></script>
-<script>window.jQuery || document.write("<script src='public/js/jquery-1.6.3.min.js'><\/script>");</script>
+<script>window.jQuery || document.write("<script src='/js/jquery-1.6.3.min.js'><\/script>");</script>
+<script defer src="/js/application.js"></script>
 <!--[if lt IE 7 ]>
 <script defer src="//ajax.googleapis.com/ajax/libs/chrome-frame/1.0.3/CFInstall.min.js"></script>
 <script defer>window.attachEvent('onload',function(){CFInstall.check({mode:'overlay'})})</script>
