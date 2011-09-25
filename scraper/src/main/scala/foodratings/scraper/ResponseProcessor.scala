@@ -226,7 +226,7 @@ class DataHandler(writer: DataWriter) extends Actor {
 object ResponseProcessor extends Actor {
   val log = LoggerFactory.getLogger(this.getClass)
   val handler = new ContentHandler()
-  val dataHandler = new DataHandler(new MongoWriter("foodratings", "ratings_test"))
+  val dataHandler = new DataHandler(new MongoWriter(ScraperConfiguration.database, ScraperConfiguration.collection))
   handler.start()
   dataHandler.start()
 

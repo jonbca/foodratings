@@ -4,4 +4,6 @@ object ScraperConfiguration {
   val consumer_key = ""
   val consumer_secret = ""
   val private_url = "http://query.yahooapis.com/v1/yql/jonbca/ratings?format=json&eid={eid}"
+  val database = "foodratings"
+  val collection = "ratings"
 }
