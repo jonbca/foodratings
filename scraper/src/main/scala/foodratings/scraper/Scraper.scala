@@ -48,7 +48,7 @@ object Scraper extends App {
 
     val wait_time = 1000L
 
-    for (eid <- 263027 to 263037) {
+    for (eid <- args(0).toInt to args(1).toInt) {
         log info "Scheduler sending request for eid: " + eid
         requestSender.get(new URI(eidRegex.replaceFirstIn(ScraperConfiguration.private_url, eid.toString))) match {
         case Some(s: String) =>

@@ -194,8 +194,8 @@ class MongoWriter(database: String, collection: String) extends DataWriter {
     val obj = MongoDBObject.newBuilder
 
     data foreach {
-      case (key: String, value: Map[String, _]) => obj += (key -> to_mongo_object (value))
-      case m @ (_, _) => obj += m
+      case (key: String, value: Map[String, _]) => obj += (key -> to_mongo_object(value))
+      case m @ (_: String, _) => obj += m
       case m => log error "Don't know how to map to Mongo object: " + m
     }
 
